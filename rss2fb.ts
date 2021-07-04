@@ -47,12 +47,18 @@ async function syncFeed(config: Config, feedConfig: Feed, client: feoblog.Client
     let itemsToStore: FeedItem[] = []
     for (let item of feed.items.slice(0, MAX_FEED_ITEMS)) {
 
-        if (!item.date_published) {
-            log.warn(`Item does not have a date_published. Skipping`)
+        // Some blogs may only publish a modified date.
+        // We'll prefer published, because we're not going to update
+        // with each update. And I feel like I should reward people that
+        // constantly (re)edit their RSS posts. :p
+        let published = item.date_published || item.date_modified
+
+        if (!published) {
+            log.warn(`Item does not have a published or modified date. Skipping`)
             continue
         }
         log.trace("title", item.title)
-        log.trace("published", item.date_published)
+        log.trace("published", published)
         log.trace("content_html", item.content_html)
         log.trace("content_text", item.content_text)
         log.trace("summary", item.summary)
@@ -75,7 +81,7 @@ async function syncFeed(config: Config, feedConfig: Feed, client: feoblog.Client
 
         let feedItem = new FeedItem({
             guid: item.id,
-            published: item.date_published,
+            published,
             markdown,
             title: item.title
         })
