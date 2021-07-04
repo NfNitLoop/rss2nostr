@@ -1,11 +1,8 @@
 # Which FeoBlog server should we push new posts to?
 server_url = "https://your_feoblog.example.com"
 
-# The script saves some .guids files, and will try to put them here:
-cache_dir = "./guids"
-
 [[feeds]]
-# On first post, we'll create a profile w/ this name:
+# On first post, we'll create a profile w/ this name:  (Not yet implemented)
 name = "New York Times Top Stories"
 rss_url = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
 
