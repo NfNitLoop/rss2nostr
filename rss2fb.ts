@@ -3,7 +3,7 @@
 //
 // Written for Deno. 
 
-import { load as loadConfig, Config, Feed } from "./private/config.ts"
+import { load as loadConfig, Feed } from "./private/config.ts"
 import { Logger } from "./private/logging.ts"
 import { requestPermissions } from "./private/permissions.ts"
 import { feoblog, nhm, rss} from "./private/deps.ts";
@@ -25,16 +25,16 @@ async function main() {
 
     // TODO: Can do these in parallel:
     for (const feedConfig of config.feeds || []) {
-        await syncFeed(config, feedConfig, client)
+        await syncFeed(feedConfig, client)
     }
 }
 
 // Look, uh, if your RSS feed is giant we're only going to look at the first 200.
 const MAX_FEED_ITEMS = 200
 
-async function syncFeed(config: Config, feedConfig: Feed, client: feoblog.Client) {
+async function syncFeed(feedConfig: Feed, client: feoblog.Client) {
     log.debug(`Feed: ${feedConfig.name}`)
-    let userID = feoblog.UserID.fromString(feedConfig.user_id)
+    const userID = feoblog.UserID.fromString(feedConfig.user_id)
 
     // TODO: Write profile if it doesn't exist. 
 
@@ -45,13 +45,13 @@ async function syncFeed(config: Config, feedConfig: Feed, client: feoblog.Client
     const { feed } = await rss.deserializeFeed(xml, { outputJsonFeed: true });
 
     let itemsToStore: FeedItem[] = []
-    for (let item of feed.items.slice(0, MAX_FEED_ITEMS)) {
+    for (const item of feed.items.slice(0, MAX_FEED_ITEMS)) {
 
         // Some blogs may only publish a modified date.
         // We'll prefer published, because we're not going to update
         // with each update. And I feel like I should reward people that
         // constantly (re)edit their RSS posts. :p
-        let published = item.date_published || item.date_modified
+        const published = item.date_published || item.date_modified
 
         if (!published) {
             log.warn(`Item does not have a published or modified date. Skipping`)
@@ -66,7 +66,7 @@ async function syncFeed(config: Config, feedConfig: Feed, client: feoblog.Client
         // Some feeds use "summary" instead of HTML content.
         // But it looks like the RSS library fills in content_html with just the URL,
         // so prefer summary if it exists:
-        let html = item.summary || item.content_html || item.content_text
+        const html = item.summary || item.content_html || item.content_text
 
         let markdown = htmlToMarkdown(html)
         if (item.url) { 
@@ -79,7 +79,7 @@ async function syncFeed(config: Config, feedConfig: Feed, client: feoblog.Client
         log.trace("markdown:", markdown)
         log.trace("----")
 
-        let feedItem = new FeedItem({
+        const feedItem = new FeedItem({
             guid: item.id,
             published,
             markdown,
@@ -98,8 +98,8 @@ async function syncFeed(config: Config, feedConfig: Feed, client: feoblog.Client
     itemsToStore.sort(FeedItem.sortByDate)
     
     // Filter out duplicates by GUID:
-    let oldestTimestamp = itemsToStore[0].timestampMsUTC
-    let seenGUIDs = await log.time("getSeenGuids()", () => getSeenGUIDs(client, userID, oldestTimestamp))
+    const oldestTimestamp = itemsToStore[0].timestampMsUTC
+    const seenGUIDs = await log.time("getSeenGuids()", () => getSeenGUIDs(client, userID, oldestTimestamp))
     log.debug("Found", seenGUIDs.size, "GUIDs")
     itemsToStore = itemsToStore.filter(i => !seenGUIDs.has(i.guid))
     log.debug(itemsToStore.length, "new items remain to be posted")
@@ -109,10 +109,10 @@ async function syncFeed(config: Config, feedConfig: Feed, client: feoblog.Client
 
     // PUT items, finally!  Yay!
     await log.time("PUT Items", async () => {
-        let privKey = await feoblog.PrivateKey.fromString(feedConfig.password)
-        for (let item of itemsToStore) {
-            let bytes = item.toProtobuf()
-            let sig = privKey.sign(bytes)
+        const privKey = await feoblog.PrivateKey.fromString(feedConfig.password)
+        for (const item of itemsToStore) {
+            const bytes = item.toProtobuf()
+            const sig = privKey.sign(bytes)
             await client.putItem(userID, sig, bytes)
         }
     })
@@ -123,25 +123,24 @@ const ONE_WEEK_MS = 1000 * 60 * 60 * 24 * 7;
 // Collect GUIDs from previously posted FeoBlog Items:
 async function getSeenGUIDs(client: feoblog.Client, userID: feoblog.UserID, oldestTimestamp: number): Promise<Set<string>>
 {
-    let guids = new Set<string>()
+    const guids = new Set<string>()
 
     // NYTimes in particular realllly likes to edit their posts a lot.
     // Look back at least a week from the oldest record we got to make sure
     // we haven't already seen any of these already:
-    let cutoff = oldestTimestamp - ONE_WEEK_MS;
+    const cutoff = oldestTimestamp - ONE_WEEK_MS;
 
     const entries = client.getUserItems(userID)
-    let count = 0;
-    for await (let entry of entries) {
+    for await (const entry of entries) {
         if (entry.timestamp_ms_utc < cutoff) { break }
 
-        let sig = feoblog.Signature.fromBytes(entry.signature.bytes)
+        const sig = feoblog.Signature.fromBytes(entry.signature.bytes)
         log.trace(`FeoBlog Item sig: ${entry.timestamp_ms_utc} ${sig}`)
 
-        let item = await client.getItem(userID, sig)
-        let body = item?.post.body
+        const item = await client.getItem(userID, sig)
+        const body = item?.post.body
         if (!body) { continue }
-        let guid = findGUID(body)
+        const guid = findGUID(body)
         if (guid) { guids.add(guid) }
     }
 
@@ -198,7 +197,7 @@ class FeedItem {
     }
 
     toProtobuf(): Uint8Array {
-        let item = new feoblog.protobuf.Item({
+        const item = new feoblog.protobuf.Item({
             timestamp_ms_utc: this.timestampMsUTC,
             // NOTE: No offset, since JS Date (nor rss's JSONFeed data type) support it.
         })
@@ -245,7 +244,7 @@ const GUID_PATTERN = /^\<!-- GUID: "([^">]+)" -->/mg
 
 // Find a GUID from a previous post.
 function findGUID(markdown: string): string|null {
-    let results = [...markdown.matchAll(GUID_PATTERN)]
+    const results = [...markdown.matchAll(GUID_PATTERN)]
     if (results.length == 0) {
         return null
     }
@@ -253,7 +252,7 @@ function findGUID(markdown: string): string|null {
         log.warn("Found more than one GUID. Using first one.")
     }
 
-    let match = results[0]
+    const match = results[0]
     return match[1] // guid captured in group 1.
 }
 
