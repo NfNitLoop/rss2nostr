@@ -1,12 +1,12 @@
-
+// deno-lint-ignore-file no-explicit-any
+// (Because AFAIK console.log() functions take `any`.)
 
 export type LogLevel = "error"|"warn"|"info"|"debug"|"trace"
 
 // A logger with .log() methods that are compatible with console.log(...) signature.
 export class Logger {
-    // TODO: Set this from CLI args.
-    level: LogLevel = "warn"
 
+    /** Log unconditionally  */
     log(...args: any[]) {
         console.log(...args)
     }
@@ -22,7 +22,8 @@ export class Logger {
 
     info(...args: any[]) {
         if (this.levelNum < 3) { return }
-        this.log("INFO:", ...args)
+        // Note: INFO is the default log level, so we don't prefix it:
+        this.log(...args)
     }
 
     debug(...args: any[]) {
@@ -36,25 +37,86 @@ export class Logger {
     }
 
     async time<T>(message: string, callback: () => T) {
-        let start = (new Date()).getMilliseconds()
+        const timer = new Timer()
         this.debug("TIME START:", message)
         try {
             return await callback()
         } finally {
-            let end = (new Date()).getMilliseconds()
-            let delta = end - start
-            this.debug("TIME END:", message, "after", delta, "ms")
+
+            this.debug("TIME END:", message, "after", timer.elapsed.toString())
         }
     }
         
+    // Start at "info" by default:
+    private _levelNum = 3;
 
-    private get levelNum() {
-        switch(this.level) {
-            case "error": return 1;
-            case "warn": return 2;
-            case "info": return 3;
-            case "debug": return 4;
-            case "trace": return 5;
+    get level() {
+        switch(this._levelNum) {
+            case 1: return "error";
+            case 2: return "warn";
+            case 3: return "info";
+            case 4: return "debug";
+            case 5: return "trace";
         }
+        return "trace"
+    }
+
+    increaseLevel(inc: number) {
+        this.levelNum += inc
+    }
+
+    set levelNum( newValue: number) {
+        newValue = Math.round(newValue)
+        if (newValue < 1) { newValue = 1 }
+        if (newValue > 5) { newValue = 5 }
+        this._levelNum = newValue
+    }
+    get levelNum() { return this._levelNum }
+}
+
+/** Provide some error context when errors happen. */
+export async function errorContext<T>(message: string, callback: () => Promise<T>): Promise<T> {
+    try { 
+        return await callback() 
+    } catch (cause) { 
+        throw new ErrorContext(message, cause)
+    }
+}
+
+class ErrorContext {
+    contextMessage: string
+    cause: any
+    constructor(message: string, cause: any) {
+        this.contextMessage = message
+        this.cause = cause
+    }
+
+    toString() {
+        return `${this.contextMessage}:\n    ${this.cause}`
+    }
+}
+
+class Timer {
+    started: number
+
+    constructor() {
+        this.started = new Date().valueOf()
+    }
+
+    restart() {
+        this.started = new Date().valueOf()
+    }
+
+    get elapsed(): TimeDelta {
+        return new TimeDelta(new Date().valueOf() - this.started)
+    }
+}
+
+class TimeDelta {
+    constructor(public readonly ms: number) {}
+
+    toString(): string {
+        // TODO: Can make this more human readable later for big values.
+        return `${this.ms}ms`
     }
 }

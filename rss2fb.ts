@@ -3,29 +3,59 @@
 //
 // Written for Deno. 
 
-import { load as loadConfig, Feed } from "./private/config.ts"
-import { Logger } from "./private/logging.ts"
+import { load as loadConfig, Feed, CLIOptions } from "./private/config.ts"
+import { errorContext, Logger } from "./private/logging.ts"
 import { requestPermissions } from "./private/permissions.ts"
 import { feoblog, nhm, rss} from "./private/deps.ts";
+
+const log = new Logger();
 
 async function main() {
     await requestPermissions()
 
-    // TODO: Parse log level from arguments: 
-    log.level = "warn"
+    const result = CLIOptions().parse(Deno.args)
+    if (!result.value) { 
+        log.error("Couldn't parse CLI options", result.error)
+        return
+    }
+    const options = result.value
+    log.debug("options:", options)
 
-
-    // TODO: Pass in as an optional param:
-    const configPath = "./rss2feoblog.toml"
-
-    const config = await loadConfig(configPath)
+    log.increaseLevel(options.verbose - options.quiet)
+    log.debug("Log level:", log.level)
+    
+    log.debug("Loading config from:", options.config)
+    const config = await errorContext(
+        `Reading ${options.config}`,
+        () => loadConfig(options.config)
+    )
 
     log.debug(`server URL: ${config.server_url}`)
     const client = new feoblog.Client({baseURL: config.server_url})
 
-    // TODO: Can do these in parallel:
-    for (const feedConfig of config.feeds || []) {
-        await syncFeed(feedConfig, client)
+    if (!config.feeds) {
+        log.error("No feeds defined in config file:", options.config)
+        return
+    }
+
+    if (options.profiles) {
+        for (const feedConfig of config.feeds) {
+            await errorContext(
+                `Updating profile for ${feedConfig.name || feedConfig.rss_url}`,
+                () => updateProfile(feedConfig, client)
+            )
+        }
+        log.info("")
+        log.info("Profile sync completed. Now run without `--profiles` to sync posts.")
+        return
+    }
+
+    // TODO: Can do these in parallel? But logging might get noisy.
+    for (const feedConfig of config.feeds) {
+        await errorContext(
+            `Syncing items for ${feedConfig.name || feedConfig.rss_url}`,
+            () => syncFeed(feedConfig, client)
+        )
     }
 }
 
@@ -33,17 +63,10 @@ async function main() {
 const MAX_FEED_ITEMS = 200
 
 async function syncFeed(feedConfig: Feed, client: feoblog.Client) {
-    log.debug(`Feed: ${feedConfig.name}`)
+    log.info(`Syncing Feed: ${feedConfig.name || feedConfig.rss_url}`)
     const userID = feoblog.UserID.fromString(feedConfig.user_id)
 
-    // TODO: Write profile if it doesn't exist. 
-
-    // Read RSS feed:
-    const response = await fetch(feedConfig.rss_url);
-    const xml = await response.text();
-    log.trace("xml:", xml)
-    const { feed } = await rss.deserializeFeed(xml, { outputJsonFeed: true });
-
+    const feed = await readRSS(feedConfig.rss_url)
     let itemsToStore: FeedItem[] = []
     for (const item of feed.items.slice(0, MAX_FEED_ITEMS)) {
 
@@ -118,6 +141,47 @@ async function syncFeed(feedConfig: Feed, client: feoblog.Client) {
     })
 }
 
+async function updateProfile(feedConfig: Feed, client: feoblog.Client) {
+    let displayName = feedConfig.name
+    if (!displayName) { 
+        log.debug("No title specified for", feedConfig.rss_url)
+        log.debug("Fetching from RSS.")
+        const feed = await readRSS(feedConfig.rss_url)
+        log.debug("Got title:", feed.title)
+        displayName = feed.title
+    }
+
+    const profileText = [
+        `Posts from <${feedConfig.rss_url}>`,
+        "",
+        "Sync'd by [rss2fb](https://deno.land/x/rss2fb)",
+    ].join("\n")
+
+    const userID = feoblog.UserID.fromString(feedConfig.user_id)
+    const result = await client.getProfile(userID)
+    if (result) {
+        const profile = result.item.profile
+        if (profile.display_name == displayName && profile.about == profileText) {
+            log.info("Profile already updated for", displayName)
+            return
+        }
+    }
+
+    const item = new feoblog.protobuf.Item({
+        timestamp_ms_utc: (new Date()).valueOf(),
+    })
+    item.profile = new feoblog.protobuf.Profile({
+        display_name: displayName,
+        about: profileText
+    })
+
+    const privKey = await feoblog.PrivateKey.fromString(feedConfig.password)
+    const itemBytes = item.serialize()
+    const sig = privKey.sign(itemBytes)
+    await client.putItem(userID, sig, itemBytes)
+    log.info("Updated profile for", displayName)
+}
+
 const ONE_WEEK_MS = 1000 * 60 * 60 * 24 * 7;
 
 // Collect GUIDs from previously posted FeoBlog Items:
@@ -138,7 +202,7 @@ async function getSeenGUIDs(client: feoblog.Client, userID: feoblog.UserID, olde
         log.trace(`FeoBlog Item sig: ${entry.timestamp_ms_utc} ${sig}`)
 
         const item = await client.getItem(userID, sig)
-        const body = item?.post.body
+        const body = item?.post?.body
         if (!body) { continue }
         const guid = findGUID(body)
         if (guid) { guids.add(guid) }
@@ -256,7 +320,21 @@ function findGUID(markdown: string): string|null {
     return match[1] // guid captured in group 1.
 }
 
+async function readRSS(url: string): Promise<rss.JsonFeed> {
+    const response = await fetch(url);
+    const xml = await response.text();
+    log.trace("xml:", xml)
+    const { feed } = await rss.deserializeFeed(xml, { outputJsonFeed: true });
+    return feed
+}
 
-const log = new Logger();
-main()
+
+// --------------------------
+try {
+    await main()
+} catch (error) {
+    console.error(error)
+    Deno.exit(1)
+}
+
 

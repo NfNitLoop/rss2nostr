@@ -1,17 +1,47 @@
 // deno-lint-ignore-file camelcase
 // (because the toml format shared with Python uses camel case names.)
 
-import { toml, feoblog } from "./deps.ts"
+import { args, toml, feoblog } from "./deps.ts"
 
+export function CLIOptions() {
+    const parser = args.args.with(
+        args.EarlyExitFlag("help", {
+            describe: "Display help",
+            exit() {
+                console.log(parser.help())
+                return Deno.exit()
+            }
+        })
+    ).with(
+        args.BinaryFlag("profiles", {
+            describe: "Should we set profiles for these feeds? (Only need to do once.)"
+        })
+    ).with(
+        args.PartialOption("config", {
+            describe: "The path to the config file",
+            type: args.Text,
+            default: "./rss2feoblog.toml",
+        })
+    ).with(
+        args.CountFlag("quiet", {
+            alias: ["q"],
+            describe: "Output fewer logs",
+        })
+    )
+    .with(
+        args.CountFlag("verbose", {
+            alias: ["v"],
+            describe: "Output more logs", 
+        })
+    )
+
+    return parser
+}
 
 
 export type Config = {
     // Which FeoBlog server should we post the data to?
     server_url: string,
-
-    // TODO: Remove? 
-    // TODO: Could use localStorage instead but ehhhh....
-    // cache_dir: string,
 
     feeds?: Feed[]
 }
@@ -48,7 +78,7 @@ export async function load(fileName: string): Promise<Config> {
         }
 
         try {
-            let pkey = await feoblog.PrivateKey.fromString(feed.password)
+            const pkey = await feoblog.PrivateKey.fromString(feed.password)
 
             if (userID.toString() != pkey.userID.toString()) {
                 throw `Expected a password for ${userID} but found one for ${pkey.userID}`
