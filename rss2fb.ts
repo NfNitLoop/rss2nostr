@@ -89,7 +89,7 @@ async function syncFeed(feedConfig: Feed, client: feoblog.Client) {
         // Some feeds use "summary" instead of HTML content.
         // But it looks like the RSS library fills in content_html with just the URL,
         // so prefer summary if it exists:
-        const html = item.summary || item.content_html || item.content_text
+        const html = asString(item.summary || item.content_html || item.content_text)
 
         let markdown = htmlToMarkdown(html)
         if (item.url) { 
@@ -139,6 +139,12 @@ async function syncFeed(feedConfig: Feed, client: feoblog.Client) {
             await client.putItem(userID, sig, bytes)
         }
     })
+}
+
+// Work around: https://github.com/MikaelPorttila/rss/issues/32
+function asString(s: string|undefined): string|undefined {
+    if (typeof s === "string") return s
+    return undefined
 }
 
 async function updateProfile(feedConfig: Feed, client: feoblog.Client) {

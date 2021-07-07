@@ -1,5 +1,3 @@
-// https://stackoverflow.com/questions/61821038/how-to-use-npm-module-in-deno
-
 // TODO: more precise exports here?
 
 // std:
