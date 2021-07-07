@@ -10,13 +10,13 @@ import { feoblog, nhm, rss} from "./private/deps.ts";
 
 const log = new Logger();
 
-async function main() {
+async function main(): Promise<number> {
     await requestPermissions()
 
     const result = CLIOptions().parse(Deno.args)
     if (!result.value) { 
         log.error("Couldn't parse CLI options", result.error)
-        return
+        return 1
     }
     const options = result.value
     log.debug("options:", options)
@@ -35,7 +35,7 @@ async function main() {
 
     if (!config.feeds) {
         log.error("No feeds defined in config file:", options.config)
-        return
+        return 1
     }
 
     if (options.profiles) {
@@ -47,16 +47,33 @@ async function main() {
         }
         log.info("")
         log.info("Profile sync completed. Now run without `--profiles` to sync posts.")
-        return
+        return 0
     }
+
+    const errors = []
 
     // TODO: Can do these in parallel? But logging might get noisy.
     for (const feedConfig of config.feeds) {
-        await errorContext(
-            `Syncing items for ${feedConfig.name || feedConfig.rss_url}`,
-            () => syncFeed(feedConfig, client)
-        )
+        // Don't stop syncing all feeds due to an error in one:
+        try {
+            await errorContext(
+                `Syncing items for ${feedConfig.name || feedConfig.rss_url}`,
+                () => syncFeed(feedConfig, client)
+            )
+        } catch (error) {
+            errors.push(error)
+        }
     }
+
+    if (errors.length > 0) {
+        for (const error of errors) {
+            log.error(error)
+        }
+
+        return 1
+    }
+
+    return 0
 }
 
 // Look, uh, if your RSS feed is giant we're only going to look at the first 200.
@@ -337,7 +354,7 @@ async function readRSS(url: string): Promise<rss.JsonFeed> {
 
 // --------------------------
 try {
-    await main()
+    Deno.exit(await main())
 } catch (error) {
     console.error(error)
     Deno.exit(1)
