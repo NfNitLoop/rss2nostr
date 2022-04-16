@@ -20,6 +20,6 @@ export * as feoblog from "https://deno.land/x/feoblog_client@v0.1.2/mod.ts"
 // https://github.com/denoland/deno/issues/11140
 // export * as h2md from "https://cdn.skypack.dev/node-html-markdown@v0.1.7?dts"
 // I guess I can use it without typescript types for now:
-export * as nhm from "https://cdn.skypack.dev/node-html-markdown@v0.1.7"
+export * as nhm from "https://cdn.skypack.dev/node-html-markdown@v1.1.3"
 
 export * as args from "https://deno.land/x/args@2.1.1/index.ts"
