@@ -6,7 +6,8 @@
 import { load as loadConfig, Feed, CLIOptions } from "./private/config.ts"
 import { errorContext, Logger } from "./private/logging.ts"
 import { requestPermissions } from "./private/permissions.ts"
-import { feoblog, nhm, rss} from "./private/deps.ts";
+import { feoblog, rss} from "./private/deps.ts";
+import { htmlToMarkdown } from "./private/markdown.ts";
 
 const log = new Logger();
 
@@ -235,21 +236,6 @@ async function getSeenGUIDs(client: feoblog.Client, userID: feoblog.UserID, olde
 }
 
     
-// node-html-markdown is the best html-to-markdown parser I've found that
-// works with Deno at the moment.
-// However, I'd really love to be able to use `[link]: url` style links to 
-// make the markdown more readable in markdown (as well as HTML).
-// TODO: 
-//  * Use Turndown (once https://github.com/mixmark-io/turndown/issues/390 is fixed?)
-//  * Or wait for https://github.com/crosstype/node-html-markdown/issues/15
-//  * Or find something else to post-process the markdown to how I want it?
-const service = new nhm.NodeHtmlMarkdown({
-    // https://github.com/crosstype/node-html-markdown#readme
-})
-
-function htmlToMarkdown(html: string|undefined): string {
-    return service.translate(html || "")
-}
 
 
 interface ItemData {
