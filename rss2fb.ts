@@ -292,7 +292,7 @@ function addURL(markdown: string, url: string): string {
     }
 
     return (
-        markdown.trimRight()
+        markdown.trimEnd()
         + "\n\n"
         + `[Continue Reading…](${url})`
     )
@@ -301,7 +301,7 @@ function addURL(markdown: string, url: string): string {
 // Add the RSS item GUID to the end of a post. Allows us to retrieve GUIDs later.
 function addGUID(markdown: string, guid: string): string {
     return (
-        markdown.trimRight()
+        markdown.trimEnd()
         + "\n\n"
         + `<!-- GUID: "${noQuotes(guid)}" -->`
     )
@@ -309,6 +309,9 @@ function addGUID(markdown: string, guid: string): string {
 
 // Just remove quotes from GUIDs instead of escaping them:
 function noQuotes(value: string): string {
+    if (typeof(value) != "string") {
+        throw new Error("Expected string, found: " + typeof(value))
+    }
     // also remove > to prevent breaking out of our HTML <!-- comment -->:
     return value.replaceAll(/[">]/g, "")
 }
