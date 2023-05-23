@@ -310,6 +310,7 @@ function addGUID(markdown: string, guid: string): string {
 // Just remove quotes from GUIDs instead of escaping them:
 function noQuotes(value: string): string {
     if (typeof(value) != "string") {
+        console.log("unexpected type", value)
         throw new Error("Expected string, found: " + typeof(value))
     }
     // also remove > to prevent breaking out of our HTML <!-- comment -->:
