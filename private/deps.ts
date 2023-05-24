@@ -4,7 +4,7 @@
 export * as toml from "https://deno.land/std@0.100.0/encoding/toml.ts"
 
 // third-party:
-export * as rss from "https://deno.land/x/rss@0.3.6/mod.ts"
+export * as rss from "https://deno.land/x/rss@0.5.8/mod.ts"
 
 export * as feoblog from "https://deno.land/x/feoblog_client@v0.1.2/mod.ts"
 
