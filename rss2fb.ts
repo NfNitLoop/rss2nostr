@@ -308,11 +308,11 @@ function addGUID(markdown: string, guid: string): string {
 }
 
 // Just remove quotes from GUIDs instead of escaping them:
-function noQuotes(value: string): string {
-    if (typeof(value) != "string") {
-        console.log("unexpected type", value)
-        throw new Error("Expected string, found: " + typeof(value))
-    }
+function noQuotes(value: string|undefined): string {
+    // We seem to be getting "undefined" from MotherJones. Maybe they're not specifying the GUID?
+    // Quick hacks to let it through. No GUIDs for you.
+    if (!value) { return "undefined" }
+
     // also remove > to prevent breaking out of our HTML <!-- comment -->:
     return value.replaceAll(/[">]/g, "")
 }
