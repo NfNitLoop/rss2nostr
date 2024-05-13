@@ -1,0 +1,13 @@
+{
+    "name": "@nfnitloop/rss2nostr",
+    "version": "0.1.0",
+    "tasks": {
+        "check": "deno task check-types && deno task check-publish",
+        "check-types": "deno check rss2nostr.ts",
+        "check-publish": "deno publish --dry-run",
+        "dev-install": "deno install --allow-read --allow-net --deny-env --force --global rss2nostr.ts"
+    },
+    "exports": {
+        ".": "./rss2nostr.ts"
+    },
+}

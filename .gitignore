@@ -1,2 +1,5 @@
-/*.toml
 .vscode/settings.json
+
+# Only check in the .sample.toml:
+/*.toml
+!rss2nostr.sample.toml

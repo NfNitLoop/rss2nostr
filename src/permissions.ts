@@ -6,12 +6,12 @@ type RequiredPermission = {
 // TODO: Build permissions more graunlarly from options/config.
 const permissionRequirements: RequiredPermission[] = [
     {
-        permission: { name: "read", path: "./rss2feoblog.toml" } as const,
-        reason: "We need to read your configuration file from the current directory.",
+        permission: { name: "read" } as const,
+        reason: "We need to read your configuration file.",
     },
     {
         permission: { name: "net" } as const,
-        reason: "We'll communicate w/ RSS feeds and FeoBlog over the network.",
+        reason: "We'll communicate w/ RSS feeds and Nostr relays.",
     }
 ]
 

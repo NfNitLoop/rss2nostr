@@ -1,0 +1,28 @@
+# Which relays should we push new posts to?
+# If there are more than one, the first one is used as the "primary".
+destRelays = [
+    "wss://nos.lol",
+]
+
+[[feeds]]
+# On first post, we'll create a profile w/ this name:  (Not yet implemented)
+name = "New York Times Top Stories"
+rssUrl = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
+
+# pub/private keys for the Nostr acount that we'll post these to.
+# (Don't use your own account, create a new one!)
+npub = "01234567..."
+nsec = ""
+
+[[feeds]]
+name = "The Verge"
+rssUrl = "https://www.theverge.com/rss/index.xml"
+npub = "..."
+nsec = "..."
+
+
+[[feeds]]
+name = "Kotaku"
+rssUrl = "https://kotaku.com/rss"
+npub = "..."
+nsec = "..."
