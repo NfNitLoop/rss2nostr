@@ -7,6 +7,7 @@
       "jsr:@cliffy/table@1.0.0-rc.4": "jsr:@cliffy/table@1.0.0-rc.4",
       "jsr:@maxim-mazurok/sax-ts@1.2.13": "jsr:@maxim-mazurok/sax-ts@1.2.13",
       "jsr:@mikaelporttila/rss@1.1.0": "jsr:@mikaelporttila/rss@1.1.0",
+      "jsr:@nfnitloop/nostrilo@^0.1.1": "jsr:@nfnitloop/nostrilo@0.1.1",
       "jsr:@nick/dispose": "jsr:@nick/dispose@1.1.0",
       "jsr:@nick/dispose@1": "jsr:@nick/dispose@1.1.0",
       "jsr:@nostr/tools@2.3.1": "jsr:@nostr/tools@2.3.1",
@@ -58,6 +59,17 @@
         "integrity": "08122f685bd5671313e9cab413ac1ced9e7b58017d0e69ec569f9e75d2159446",
         "dependencies": [
           "jsr:@maxim-mazurok/sax-ts@1.2.13"
+        ]
+      },
+      "@nfnitloop/nostrilo@0.1.1": {
+        "integrity": "ba8024eff98c2d6894afabef4e96de78b4e5f33bb9bff350a6de6f3bbeac6e58",
+        "dependencies": [
+          "jsr:@nick/dispose@1",
+          "jsr:@nostr/tools@2.3.1",
+          "jsr:@std/async@0.222.1",
+          "jsr:@std/encoding@0.222.1",
+          "jsr:@std/fmt@^0.224.0",
+          "npm:zod@3.22.4"
         ]
       },
       "@nick/dispose@1.1.0": {

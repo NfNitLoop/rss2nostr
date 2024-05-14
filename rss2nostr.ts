@@ -11,9 +11,9 @@ import { errorContext, log } from "./src/logging.ts"
 import { requestPermissions } from "./src/permissions.ts"
 import { htmlToMarkdown } from "./src/markdown.ts";
 import { Command } from "./src/deps/cliffy/command.ts";
-import { Client } from "./src/deps/nostr-tools/client.ts"; 
-import * as nostr from "./src/deps/nostr-tools/nostr.ts"
-import { LocalSigner } from "./src/deps/nostr-tools/signer.ts";
+import { Client } from "./src/deps/nostrilo/client.ts"; 
+import * as nostr from "./src/deps/nostrilo/nostr.ts"
+import { LocalSigner } from "./src/deps/nostrilo/signer.ts";
 import { readRSS } from "./src/rss.ts";
 
 
