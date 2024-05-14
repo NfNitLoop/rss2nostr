@@ -120,3 +120,5 @@ class TimeDelta {
         return `${this.ms}ms`
     }
 }
+
+export const log = new Logger();

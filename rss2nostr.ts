@@ -7,16 +7,15 @@
  */
 
 import { load as loadConfig, type Feed } from "./src/config.ts"
-import { errorContext, Logger } from "./src/logging.ts"
+import { errorContext, log } from "./src/logging.ts"
 import { requestPermissions } from "./src/permissions.ts"
-import { rss } from "./src/deps.ts";
 import { htmlToMarkdown } from "./src/markdown.ts";
 import { Command } from "./src/deps/cliffy/command.ts";
 import { Client } from "./src/deps/nostr-tools/client.ts"; 
 import * as nostr from "./src/deps/nostr-tools/nostr.ts"
 import { LocalSigner } from "./src/deps/nostr-tools/signer.ts";
+import { readRSS } from "./src/rss.ts";
 
-const log = new Logger();
 
 async function main(args: string[]): Promise<void> {
 
@@ -118,37 +117,33 @@ async function syncFeed(feedConfig: Feed, client: Client) {
 
     const feed = await readRSS(feedConfig.rssUrl)
     let itemsToStore: FeedItem[] = []
-    for (const item of feed.items.slice(0, MAX_FEED_ITEMS)) {
+    for (const item of feed.entries.slice(0, MAX_FEED_ITEMS)) {
 
         // Some blogs may only publish a modified date.
         // We'll prefer published, because we're not going to update
         // with each update. And I feel like I shouldn't reward people that
         // constantly (re)edit their RSS posts. :p
         // We *could* change this in Nostr, since it supports replaceable events.
-        const published = item.date_published || item.date_modified
 
-        if (!published) {
-            log.warn(`Item does not have a published or modified date. Skipping: ${item.id}`)
-            continue
-        }
         log.trace("title", item.title)
-        log.trace("published", published)
-        log.trace("content_html", item.content_html)
-        log.trace("content_text", item.content_text)
-        log.trace("summary", item.summary)
+        log.trace("published", item.published)
+        log.trace("content", item.content)
+        log.trace("contentType", item.contentType)
 
-        // Some feeds use "summary" instead of HTML content.
-        // But it looks like the RSS library fills in content_html with just the URL,
-        // so prefer summary if it exists:
-        const html = asString(item.summary || item.content_html || item.content_text)
+        
+        // content might be plaintext, but that's also typically valid HTML.
+        let markdown = htmlToMarkdown(item.content)
 
-        let markdown = htmlToMarkdown(html)
         if (item.url) { 
             log.trace("url", item.url)
             markdown = addURL(markdown, item.url)
         }
         log.trace("guid", item.id)
 
+        if (!item.id) {
+            log.warn("Skipping item with no id:", item.title)
+            continue
+        }
 
         log.trace("markdown:", markdown)
         log.trace("----")
@@ -156,7 +151,7 @@ async function syncFeed(feedConfig: Feed, client: Client) {
         const feedItem = new FeedItem({
             guid: item.id,
             destUrl: item.url,
-            published,
+            published: item.published,
             markdown,
             title: item.title
         })
@@ -207,12 +202,6 @@ async function syncFeed(feedConfig: Feed, client: Client) {
     if (failCount > 0) {
         log.warn("Failed to publish", failCount, "items")
     }
-}
-
-// Work around: https://github.com/MikaelPorttila/rss/issues/32
-function asString(s: string|undefined): string|undefined {
-    if (typeof s === "string") return s
-    return undefined
 }
 
 async function updateProfile(feedConfig: Feed, client: Client): Promise<"published" | "skipped" | "error"> {
@@ -422,13 +411,6 @@ function addURL(markdown: string, url: string): string {
 
 
 
-async function readRSS(url: string): Promise<rss.JsonFeed> {
-    const response = await fetch(url);
-    const xml = await response.text();
-    log.trace("xml:", xml)
-    const { feed } = await rss.deserializeFeed(xml, { outputJsonFeed: true });
-    return feed
-}
 
 // --------------------------
 if (import.meta.main) {
