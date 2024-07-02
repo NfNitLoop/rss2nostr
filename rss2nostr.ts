@@ -6,7 +6,7 @@
  * @module
  */
 
-import { load as loadConfig, type Feed } from "./src/config.ts"
+import { load as loadConfig, type Feed} from "./src/config.ts"
 import { errorContext, log } from "./src/logging.ts"
 import { requestPermissions } from "./src/permissions.ts"
 import { htmlToMarkdown } from "./src/markdown.ts";
@@ -42,6 +42,8 @@ async function main(args: string[]): Promise<void> {
         .description("Update (or create) Nostr profiles for each RSS feed.")
         .action(cmd_profiles)
     cmd.command(profiles.getName(), profiles)
+
+    // TODO: Would be nice to have a command here to generate a new keypair.
 
     await cmd.parse(args)
 }
@@ -93,21 +95,35 @@ async function cmd_sync(options: GlobalOptions): Promise<void> {
 
 
 async function cmd_profiles(options: GlobalOptions) {
-    // TODO: Move boilerplate into function itself:
-    log.debug("Loading config from:", options.config)
     const config = await loadConfig(options.config)
-    // TODO: Support multiple clients.
     using client = Client.connect(config.destRelays[0])
+
+    // Create/update parent profile.
+    // This should come first, in case it grants more permissions on the relay to the profiles we follow.
+    const parent = config.parentProfile
+    if (parent) {
+        const profile = new Profile({
+            displayName: "rss2nostr feed",
+            aboutText: "https://jsr.io/@nfnitloop/rss2nostr"
+        })
+        const signer = new LocalSigner(parent.npub, parent.nsec)
+        await updateProfile(client, profile, signer)
+
+        await updateFollows(client, config.feeds, signer)
+    }
 
     for (const feedConfig of config.feeds) {
         await errorContext(
             `Updating profile for ${feedConfig.name || feedConfig.rssUrl}`,
-            () => updateProfile(feedConfig, client)
+            () => updateFeedProfile(feedConfig, client)
         )
     }
+
     log.info("")
     log.info("Profile sync completed.")
 }
+
+
 
 // Look, uh, if your RSS feed is giant we're only going to look at the first 200.
 const MAX_FEED_ITEMS = 200
@@ -204,9 +220,10 @@ async function syncFeed(feedConfig: Feed, client: Client) {
     }
 }
 
-async function updateProfile(feedConfig: Feed, client: Client): Promise<"published" | "skipped" | "error"> {
+/** Generate a profile for a Feed, and update it if it needs updating. */
+async function updateFeedProfile(feedConfig: Feed, client: Client): Promise<"published" | "skipped" | "error"> {
     const aboutText = [
-        `Posts from <${feedConfig.rssUrl}>`,
+        `Posts from ${feedConfig.rssUrl}`,
         "",
         "Sync'd by rss2nostr",
         // TODO: Add link to the above once I publish this.
@@ -218,6 +235,13 @@ async function updateProfile(feedConfig: Feed, client: Client): Promise<"publish
     })
 
     const {npub, nsec} = feedConfig
+
+    return await updateProfile(client, newProfile, new LocalSigner(npub, nsec))
+}
+
+/** Update a profile on a relay if it needs to be. */
+async function updateProfile(client: Client, newProfile: Profile, signer: LocalSigner) {
+    const npub = signer.pubkey
     const result = await client.getProfile(npub)
     if (result) {
         log.debug("Got old profile:", result)
@@ -231,7 +255,6 @@ async function updateProfile(feedConfig: Feed, client: Client): Promise<"publish
     }
 
     
-    const signer = new LocalSigner(npub, nsec)
     const event = await signer.sign(newProfile.toEvent())
     const {published} = await client.tryPublish(event)
     if (published) {
@@ -241,8 +264,33 @@ async function updateProfile(feedConfig: Feed, client: Client): Promise<"publish
         log.warn("Couldn't send profile to", client.url, "for", newProfile, npub)
         return "error"
     }
-
 }
+
+async function updateFollows(client: Client, feeds: Feed[], signer: LocalSigner): Promise<void> {
+    const follows = new Follows(feeds.map(f => ({
+        npub: f.npub,
+        name: f.name
+    })))
+
+    const existing = await client.getFollows(signer.pubkey)
+    if (existing) {
+        log.debug("Got old follows:", existing)
+        const oldFollows = Follows.fromEvent(existing)
+        if (oldFollows.sameAs(follows)) {
+            log.debug("Follows already updated for", signer.pubkey)
+            return
+        }
+    }
+
+    const event = await signer.sign(follows.toEvent())
+    const {published} = await client.tryPublish(event)
+    if (published) {
+        log.info("Updated follows for", signer.pubkey)
+    } else {
+        log.warn("Couldn't send follows to", client.url, "for", signer.pubkey)
+    }
+}
+  
 
 class Profile {
   displayName: string;
@@ -286,10 +334,68 @@ class Profile {
         
         return {
             kind: 0,
-            created_at: Math.floor(Date.now().valueOf() / 1000),
+            created_at: Math.floor(Date.now() / 1000),
             tags: [],
             content: JSON.stringify(profileData)
         }
+    }
+}
+
+
+/** 
+ * A Kind 3 "follows" event.
+ * 
+ * See: https://github.com/nostr-protocol/nips/blob/master/02.md
+ */
+class Follows {
+
+    readonly follows: {
+        npub: string,
+        name?: string
+    }[]
+
+    constructor(follows: Follows["follows"]) {
+        this.follows = follows
+    }
+
+    static fromEvent(event: nostr.Event): Follows {
+        const follows = event.tags
+            .filter(it => it[0] == "p")
+            .map(it => ({
+                npub: it[1],
+                name: it[3]
+            }))
+        return new Follows(follows)
+    }
+
+    toEvent(): nostr.UnsignedEvent {
+        type Tag = nostr.UnsignedEvent["tags"][0]
+        const tags: Tag[] = []
+        for (const {npub, name} of this.follows) {
+            const tag: Tag = ["p", npub]
+            if (name) {
+                tag.push("", name)
+            }
+            tags.push(tag)
+        }
+
+        return {
+            kind: 3,
+            created_at: Math.floor(Date.now() / 1000),
+            content: "",
+            tags
+        }
+    }
+
+    sameAs(other: Follows) {
+        const mine = this.#followsSet()
+        const theirs = other.#followsSet()
+
+        return mine.isSubsetOf(theirs) && theirs.isSubsetOf(mine)
+    }
+
+    #followsSet() {
+        return new Set(this.follows.map(f => `${f.npub} ${f.name}`))
     }
 }
 
@@ -421,6 +527,7 @@ if (import.meta.main) {
         Deno.exit(1)
     }
 }
+
 
 
 

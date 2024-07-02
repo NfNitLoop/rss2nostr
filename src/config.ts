@@ -3,7 +3,7 @@
 
 import { toml } from "./deps.ts"
 import { z } from "./deps/zod.ts";
-import { Logger, errorContext } from "./logging.ts";
+import { log, errorContext } from "./logging.ts";
 
 // TODO: Support nicer npub/nsec formats here:
 // ex: 
@@ -15,22 +15,28 @@ import { Logger, errorContext } from "./logging.ts";
 const Npub = z.string().length(64).regex(/^[0-9a-f]+$/i)
 const Nsec = Npub
 
-export type Feed = z.infer<typeof Feed>
-export const Feed = z.object({
+const Profile = z.object({
     name: z.string(),
-    rssUrl: z.string(),
     npub: Npub,
     nsec: Nsec,
+}).strict()
+
+export type Feed = z.infer<typeof Feed>
+export const Feed = Profile.extend({
+    rssUrl: z.string(),
 }).strict()
 
 export type Config = z.infer<typeof Config>
 export const Config = z.object({
     destRelays: z.array(z.string()).min(1),
 
+    parentProfile: Profile.optional(),
+
     feeds: z.array(Feed)
 }).strict()
 
 export async function load(fileName: string): Promise<Config> {
+    log.debug("Loading config from:", fileName)
 
     return await errorContext(
         `Reading ${fileName}`,

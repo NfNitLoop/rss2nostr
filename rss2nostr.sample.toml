@@ -4,6 +4,17 @@ destRelays = [
     "wss://nos.lol",
 ]
 
+# Optional section. Specifies a "parent" profile, which will follow all the feed
+# profiles. This helps group all of the RSS feeds into one "follow feed" that's
+# easy to see together.
+[parentProfile]
+name = "Parent Profile"
+
+# pub/private keys for the Nostr acount that we'll post these to.
+# (Don't use your own account, create a new one!)
+npub = "01234567..."
+nsec = ""
+
 [[feeds]]
 # On first post, we'll create a profile w/ this name:  (Not yet implemented)
 name = "New York Times Top Stories"
